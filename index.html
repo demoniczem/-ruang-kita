@@ -42,16 +42,87 @@ button,.file-label{border:0;border-radius:50%;width:44px;height:44px;display:gri
 <div class="note">Demo tampilan: pesan dan foto hanya tersimpan sementara di halaman ini.</div>
 </section></div>
 <script>
-const messages=document.getElementById('messages'),entry=document.getElementById('entry');
-function addMessage(content,isPhoto=false){
- const bubble=document.createElement('div');bubble.className='msg me';
- if(isPhoto){const img=document.createElement('img');img.className='preview';img.alt='Foto yang dipilih';img.src=content;bubble.appendChild(img)}
- else bubble.appendChild(document.createTextNode(content));
- const time=document.createElement('div');time.className='time';time.textContent=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});bubble.appendChild(time);messages.appendChild(bubble);messages.scrollTop=messages.scrollHeight;
+const messages = document.getElementById('messages');
+const entry = document.getElementById('entry');
+const sendButton = document.getElementById('send');
+
+function addMessage(content, sender = 'me', isPhoto = false) {
+  const bubble = document.createElement('div');
+  bubble.className = 'msg ' + sender;
+
+  if (isPhoto) {
+    const img = document.createElement('img');
+    img.className = 'preview';
+    img.alt = 'Foto yang dipilih';
+    img.src = content;
+    bubble.appendChild(img);
+  } else {
+    bubble.appendChild(document.createTextNode(content));
+  }
+
+  const time = document.createElement('div');
+  time.className = 'time';
+  time.textContent = new Date().toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  bubble.appendChild(time);
+  messages.appendChild(bubble);
+  messages.scrollTop = messages.scrollHeight;
 }
-function send(){const value=entry.value.trim();if(!value)return;addMessage(value);entry.value='';entry.focus()}
-document.getElementById('send').addEventListener('click',send);
-entry.addEventListener('keydown',e=>{if(e.key==='Enter')send()});
-document.getElementById('photo').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>addMessage(reader.result,true);reader.readAsDataURL(file);e.target.value=''});
+
+async function send() {
+  const value = entry.value.trim();
+  if (!value) return;
+
+  addMessage(value, 'me');
+  entry.value = '';
+  sendButton.disabled = true;
+
+  const loading = document.createElement('div');
+  loading.className = 'msg them';
+  loading.textContent = 'Sedang mengetik...';
+  messages.appendChild(loading);
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: value })
+    });
+
+    const data = await response.json();
+    loading.remove();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Gagal menghubungi AI');
+    }
+
+    addMessage(data.reply || 'Belum ada jawaban.', 'them');
+  } catch (error) {
+    loading.remove();
+    addMessage('Maaf, terjadi kesalahan: ' + error.message, 'them');
+  } finally {
+    sendButton.disabled = false;
+    entry.focus();
+  }
+}
+
+sendButton.addEventListener('click', send);
+
+entry.addEventListener('keydown', event => {
+  if (event.key === 'Enter') send();
+});
+
+document.getElementById('photo').addEventListener('change', event => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => addMessage(reader.result, 'me', true);
+  reader.readAsDataURL(file);
+  event.target.value = '';
+});
 </script>
 </body></html>
